@@ -1,0 +1,76 @@
+
+/* MediAI welcome section */
+.welcome {
+    width: 100%;
+    max-width: 760px;
+    margin: 5px auto 35px;
+    text-align: center;
+}
+
+.welcome-description {
+    color: #7e8a9b;
+    line-height: 1.7;
+    max-width: 490px;
+    margin: 0 auto 28px;
+    font-size: 13px;
+}
+
+/* Two columns on desktop */
+.suggestion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+}
+
+.suggestion {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 16px 14px;
+    border: 1px solid #e5ebf1;
+    border-radius: 14px;
+    background: #fff;
+    box-shadow: 0 3px 12px rgba(36, 59, 83, 0.02);
+}
+
+.suggestion strong,
+.suggestion small {
+    display: block;
+}
+
+/* Desktop layout */
+@media (min-width: 761px) {
+    .app-shell {
+        display: flex;
+        width: 100%;
+        min-height: 100vh;
+    }
+
+    .sidebar {
+        flex: 0 0 268px;
+    }
+
+    .main-panel {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .suggestion-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Mobile layout */
+@media (max-width: 760px) {
+    .suggestion-grid {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 9px;
+    }
+
+    .suggestion {
+        padding: 12px;
+    }
+}
