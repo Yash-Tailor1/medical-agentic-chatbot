@@ -1,243 +1,233 @@
-# MediAI — Medical Agentic Chatbot
+# Medical Agentic Chatbot
 
-A responsive medical education chatbot frontend connected to a FastAPI backend. The application supports text-based medical questions, retrieval from a medical PDF knowledge base, source citations, image uploads, voice input, and text-to-speech where supported by the configured backend and browser.
-
-> **Medical disclaimer:** MediAI is an educational tool, not a substitute for professional medical advice, diagnosis, or treatment. For medical emergencies, contact local emergency services.
+An AI-powered medical education chatbot built with **FastAPI, Google Gemini, and Pinecone**. The application uses retrieval-augmented generation (RAG) to retrieve relevant information from a medical reference book and generate context-aware answers to medical questions.
 
 ## Features
 
-- **AI medical chat** — Ask medical and health-related questions.
-- **Knowledge-base retrieval** — Retrieve relevant information from the configured medical PDF knowledge base.
-- **Source citations** — Display available PDF page references alongside answers.
-- **Image upload** — Select supported medical images for inspection, subject to backend configuration.
-- **Voice input** — Record audio and transcribe it when the transcription endpoint is configured.
-- **Text-to-speech** — Listen to responses using browser speech synthesis where supported.
-- **Responsive interface** — Layout adapts to desktop and mobile screens.
-- **API authentication** — Supports an optional bearer token when configured on the backend.
+- **AI-powered Q&A:** Generate responses to medical education questions using Google Gemini.
+- **Retrieval-Augmented Generation (RAG):** Ground responses in relevant passages retrieved from a medical knowledge base.
+- **PDF ingestion:** Extract, chunk, and index medical reference material.
+- **Semantic search:** Retrieve relevant text using Pinecone vector search.
+- **FastAPI backend:** Expose chatbot and health-check endpoints.
+- **Web frontend:** Interact with the chatbot through a browser.
+- **Image and voice support:** Intended for multimodal interactions where implemented in the application.
 
-## Project Structure
+## Live Demo
+
+- **Application:** https://medical-agentic-chatbot-3ohb.onrender.com
+- **API health check:** https://medical-agentic-chatbot-3ohb.onrender.com/api/health
+- **API documentation:** https://medical-agentic-chatbot-3ohb.onrender.com/docs
+
+*Note: The application is hosted on Render. On free instances, the service may take some time to respond after inactivity.*
+
+## Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| Python | Application logic |
+| FastAPI | Backend API |
+| Google Gemini | AI-generated responses |
+| Gemini Embeddings | Text embeddings |
+| Pinecone | Vector storage and semantic retrieval |
+| PyMuPDF | PDF text extraction |
+| python-dotenv | Environment configuration |
+| HTML, CSS, JavaScript | Web interface |
+| Render | Application hosting |
+
+## How It Works
+
+1. Extract text from the medical reference PDF.
+2. Split the extracted text into overlapping chunks.
+3. Generate embeddings for the text chunks.
+4. Store the embeddings and metadata in Pinecone.
+5. Retrieve relevant passages when a user asks a question.
+6. Send the question and retrieved context to Gemini to generate a response.
 
 ```text
-medical-agentic-chatbot/
-├── app/
-│   ├── main.py              # FastAPI application and API endpoints
-│   ├── agent.py             # AI agent and knowledge retrieval
-│   └── config.py            # Application configuration
-├── data/
-│   └── medical_book.pdf     # Medical reference PDF
-├── static/
-│   ├── index.html           # Frontend page
-│   ├── style.css            # Responsive styling
-│   └── app.js               # Chat and frontend interactions
-├── .env                     # Local environment variables (not committed)
-├── .gitignore
-├── requirements.txt
-└── README.md
+User
+ |
+ v
+Web Frontend
+ |
+ v
+FastAPI Backend
+ |
+ v
+Pinecone Vector Search
+ |
+ v
+Relevant Medical Context
+ |
+ v
+Google Gemini
+ |
+ v
+Response to User
 ```
 
-The exact project structure may vary depending on your current implementation.
+## Knowledge Base
 
-## Requirements
+The current project configuration uses:
+
+- **Source document:** `data/medical_book.pdf`
+- **Document length:** 637 pages
+- **Chunk size:** 1,100 characters
+- **Chunk overlap:** 180 characters
+- **Embedding model:** `gemini-embedding-2`
+- **Pinecone index:** `medical-agent-demo`
+- **Vector dimensions:** 1,536
+- **Pinecone region:** AWS `us-east-1`
+
+These values describe the current configuration and may need updating if the embedding model or index changes.
+
+## Run Locally
+
+### Prerequisites
 
 - Python 3.12 recommended
-- A configured Gemini API key
-- A configured Pinecone API key and index for knowledge retrieval
-- A modern browser
-- Additional provider credentials only for features that explicitly require them
-
-## Setup
+- Google Gemini API key
+- Pinecone API key
+- Git
 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/Yash-Tailor1/medical-agentic-chatbot.git
+git clone <YOUR_PUBLIC_REPOSITORY_URL>
 cd medical-agentic-chatbot
 ```
 
-### 2. Create and activate a virtual environment
+Replace `<YOUR_PUBLIC_REPOSITORY_URL>` with your GitHub repository URL.
 
-On macOS or Linux:
+### 2. Create and activate a virtual environment
 
 ```bash
 python3.12 -m venv .venv
 source .venv/bin/activate
 ```
 
-Install the project dependencies:
+### 3. Install dependencies
+
+If the repository contains `requirements.txt`:
 
 ```bash
-python -m pip install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-If the virtual environment already exists, activate it instead of creating another one.
+If dependencies are managed through `pyproject.toml` and `uv`:
 
-### 3. Configure environment variables
+```bash
+uv sync
+```
 
-Create a local `.env` file in the project root. Add the credentials required by your backend implementation:
+Use the installation method supported by the dependency files included in the repository.
 
-```dotenv
+### 4. Configure environment variables
+
+Create a `.env` file in the project root:
+
+```env
 GEMINI_API_KEY=your_gemini_api_key
 PINECONE_API_KEY=your_pinecone_api_key
-TAVILY_API_KEY=your_tavily_api_key
-
 PINECONE_INDEX=medical-agent-demo
-API_TOKEN=
 ```
 
-Use the actual variable names expected by your `app/config.py` and backend endpoints. Optional variables may be omitted if the corresponding functionality is not used.
+Use the exact environment variable names expected by your application configuration. Never commit `.env` or expose API keys in source code.
 
-**Security:**
-- Never commit `.env` or real API keys to GitHub.
-- Keep `.env` in `.gitignore`.
-- Use `.env.example` with placeholder values to document configuration.
-- Rotate any API key accidentally exposed in a commit or log.
-- Do not put production API keys in frontend JavaScript.
-
-## Run the Application
-
-### Option A: Serve the frontend through FastAPI
-
-From the project root:
+### 5. Start the backend
 
 ```bash
-source .venv/bin/activate
 uvicorn app.main:app --reload
 ```
 
-Open:
+Open the following URLs in your browser:
 
-- Frontend: `http://127.0.0.1:8000/` — if your FastAPI application serves `static/index.html` at `/`.
-- API health: `http://127.0.0.1:8000/api/health`
-- API documentation: `http://127.0.0.1:8000/docs`
-
-The frontend route must be configured in FastAPI for the first URL to work.
-
-### Option B: Run the frontend separately
-
-If the frontend is a standalone bundle with `index.html`, `styles.css`, and `script.js`, open a second terminal in the folder containing those files:
-
-```bash
-python3 -m http.server 5500
-```
-
-Open `http://127.0.0.1:5500`.
-
-Configure the frontend API base URL to:
-
-```javascript
-const API_BASE = "http://127.0.0.1:8000";
-```
-
-When serving the frontend and backend on different ports, configure FastAPI CORS to allow `http://127.0.0.1:5500`. Do not use `*` as the production CORS policy.
-
-**Important:** Choose the setup that matches your actual frontend files. The current project structure above uses `static/style.css` and `static/app.js`; a separate bundle may use different filenames.
+- Application/API root: http://127.0.0.1:8000/
+- Health check: http://127.0.0.1:8000/api/health
+- Interactive API documentation: http://127.0.0.1:8000/docs
 
 ## API Endpoints
 
-The frontend depends on the endpoints implemented by the backend.
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/` | Application root |
+| `GET` | `/api/health` | Check API health |
+| `POST` | `/api/chat` | Submit a chatbot request |
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /` | Application homepage, if configured |
-| `GET /api/health` | Check backend availability and configuration status |
-| `POST /api/chat` | Submit a message and receive an AI response |
-| `POST /api/inspect-image` | Inspect an image, if implemented and configured |
-| `POST /api/transcribe` | Transcribe an uploaded audio recording, if configured |
-| `POST /api/speak` | Generate speech audio, if implemented and configured |
+Refer to `/docs` for the actual request and response schemas.
 
-Endpoint names, request formats, authentication requirements, and availability depend on the current backend implementation. Check `/docs` for the authoritative API schema.
+## Deploy on Render
 
-## Configuration and Compatibility
+The backend can be deployed as a **Render Web Service**.
 
-### API authentication
+1. Push the project to a GitHub repository.
+2. In Render, create a new **Web Service** and connect the repository.
+3. Configure the build and start commands based on the project's dependency files.
+4. Add the required environment variables under the Render service's **Environment** settings.
+5. Deploy the service and verify the health-check endpoint.
 
-If the backend uses `API_TOKEN`, send the matching token as a bearer authorization header:
+Typical commands, if the project uses `requirements.txt`:
 
-```http
-Authorization: Bearer YOUR_API_TOKEN
-```
-
-For local testing, keep the token out of committed frontend files. Prefer a local development configuration or another suitable secure mechanism.
-
-### Image inspection
-
-The frontend may accept JPEG, PNG, and WebP images up to 5 MB. The backend must independently validate file types and file sizes.
-
-Image inspection may require a configured vision model and provider credentials. A successful upload does not guarantee that image analysis is enabled.
-
-### Voice input
-
-Microphone access requires browser permission and generally requires HTTPS or a trusted local origin such as `localhost`.
-
-The transcription endpoint must accept the audio format produced by the browser. If transcription uses OpenAI, configure `OPENAI_API_KEY` on the server. If the backend uses another provider, configure the credentials required by that implementation instead.
-
-### Text-to-speech
-
-Browser speech synthesis can work without a provider API key when supported by the browser and operating system. Server-generated speech requires the corresponding backend endpoint and provider configuration.
-
-### Markdown rendering
-
-If the frontend uses the `marked` and `DOMPurify` CDN libraries, an internet connection may be required to load them. Without these libraries, the frontend should fall back to safe plain-text rendering.
-
-Never render untrusted model output as unsanitized HTML.
-
-### Conversation history
-
-Conversation history held only in JavaScript memory is cleared when the page reloads. Persistent conversation history requires a separate storage implementation.
-
-## Troubleshooting
-
-**Frontend cannot connect to the API**
-- Confirm FastAPI is running on port `8000`.
-- Check the API base URL.
-- Open `/api/health` and review the server logs.
-- Check CORS configuration if the frontend runs on port `5500`.
-
-**Chat returns an error**
-- Check the Gemini API key and provider quota.
-- Confirm Pinecone configuration if knowledge retrieval is enabled.
-- Review the FastAPI terminal output and `/docs`.
-
-**Image inspection fails**
-- Verify that the image endpoint exists.
-- Check supported formats and size limits.
-- Confirm the required vision provider is configured.
-
-**Voice transcription fails**
-- Check the transcription endpoint and its provider credentials.
-- Confirm that the uploaded audio MIME type is supported.
-- Grant microphone access in the browser.
-
-**GitHub blocks a push**
-- Check for secrets in the current files and previous commits.
-- Remove exposed credentials from Git history as necessary.
-- Rotate any exposed keys before continuing.
-
-## Development
-
-Run the backend with automatic reload:
+**Build command**
 
 ```bash
-uvicorn app.main:app --reload
+pip install -r requirements.txt
 ```
 
-Before committing changes, review the files being staged:
+**Start command**
 
 ```bash
-git status
-git diff --cached
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
-Then commit and push:
+Configure the service's Python version to match the version supported by the project and its dependencies.
+
+### Render environment variables
+
+Add the required secrets in Render rather than committing them to GitHub:
+
+- `GEMINI_API_KEY`
+- `PINECONE_API_KEY`
+- `PINECONE_INDEX`
+
+Include any additional variables required by your application's settings.
+
+**Important:** If the frontend is served separately from the FastAPI backend, configure its API base URL to point to the deployed backend and set up CORS as needed.
+
+## Knowledge-Base Ingestion
+
+To process the medical PDF and populate the vector database, run the ingestion script from the project root:
 
 ```bash
-git add README.md static/
-git commit -m "Update MediAI frontend and documentation"
-git push origin main
+python ingest.py
 ```
 
-Only stage the files you intend to publish. Never stage `.env` or other files containing secrets.
+Run ingestion only when needed. If the existing Pinecone index is already populated, check the script's duplicate-handling behavior before running it again.
 
-## Disclaimer
+The PDF and its redistribution rights should be reviewed before publishing it in a public repository. If it cannot be redistributed, document how to obtain it separately rather than committing it.
 
-MediAI is intended for medical education and informational purposes only. Its responses may be incomplete or incorrect. Verify important information with qualified healthcare professionals and reliable medical sources. Do not use the application as the sole basis for medical decisions.
+## Security
+
+- Keep `.env`, API keys, and other credentials out of Git.
+- Add `.env` and `.venv/` to `.gitignore`.
+- Never publish private credentials, database connection strings, or service tokens.
+- Avoid committing large or copyrighted reference documents without permission.
+
+## Medical Disclaimer
+
+This project is intended for **medical education and informational purposes only**. It is not a substitute for professional medical advice, diagnosis, or treatment. AI-generated responses may be inaccurate or incomplete. Consult a qualified healthcare professional for personal medical concerns.
+
+## Future Improvements
+
+- Improve answer citations and source traceability.
+- Expand automated API and frontend tests.
+- Add robust image and voice workflows.
+- Improve error handling, logging, and retrieval quality.
+- Add authentication and request-rate limiting where appropriate.
+
+## License
+
+Choose a license before making the repository public. If you want others to use, modify, and distribute your code, consider adding an appropriate open-source license such as the MIT License.
+
+---
+
+**Built with FastAPI, Google Gemini, and Pinecone.**
