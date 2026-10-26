@@ -10,7 +10,7 @@ An AI-powered medical education chatbot built with **FastAPI, Google Gemini, and
 - **Semantic search:** Retrieve relevant text using Pinecone vector search.
 - **FastAPI backend:** Expose chatbot and health-check endpoints.
 - **Web frontend:** Interact with the chatbot through a browser.
-- **Image and voice support:** Intended for multimodal interactions where implemented in the application.
+- **Image and voice support:** Supports multimodal interactions where implemented in the application.
 
 ## Live Demo
 
@@ -18,7 +18,7 @@ An AI-powered medical education chatbot built with **FastAPI, Google Gemini, and
 - **API health check:** https://medical-agentic-chatbot-3ohb.onrender.com/api/health
 - **API documentation:** https://medical-agentic-chatbot-3ohb.onrender.com/docs
 
-*Note: The application is hosted on Render. On free instances, the service may take some time to respond after inactivity.*
+> **Note:** The application is hosted on Render. On free instances, the service may take some time to respond after inactivity.
 
 ## Tech Stack
 
@@ -45,23 +45,23 @@ An AI-powered medical education chatbot built with **FastAPI, Google Gemini, and
 
 ```text
 User
- |
- v
+  |
+  v
 Web Frontend
- |
- v
+  |
+  v
 FastAPI Backend
- |
- v
+  |
+  v
 Pinecone Vector Search
- |
- v
+  |
+  v
 Relevant Medical Context
- |
- v
+  |
+  v
 Google Gemini
- |
- v
+  |
+  v
 Response to User
 ```
 
@@ -92,11 +92,9 @@ These values describe the current configuration and may need updating if the emb
 ### 1. Clone the repository
 
 ```bash
-git clone <YOUR_PUBLIC_REPOSITORY_URL>
+git clone https://github.com/Yash-Tailor1/medical-agentic-chatbot.git
 cd medical-agentic-chatbot
 ```
-
-Replace `<YOUR_PUBLIC_REPOSITORY_URL>` with your GitHub repository URL.
 
 ### 2. Create and activate a virtual environment
 
@@ -111,12 +109,6 @@ If the repository contains `requirements.txt`:
 
 ```bash
 pip install -r requirements.txt
-```
-
-If dependencies are managed through `pyproject.toml` and `uv`:
-
-```bash
-uv sync
 ```
 
 Use the installation method supported by the dependency files included in the repository.
@@ -203,7 +195,7 @@ python ingest.py
 
 Run ingestion only when needed. If the existing Pinecone index is already populated, check the script's duplicate-handling behavior before running it again.
 
-The PDF and its redistribution rights should be reviewed before publishing it in a public repository. If it cannot be redistributed, document how to obtain it separately rather than committing it.
+Review the PDF's redistribution rights before publishing it in a public repository. If it cannot be redistributed, document how to obtain it separately rather than committing it.
 
 ## Security
 
