@@ -115,7 +115,7 @@ def respond(state: AgentState):
     )
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-3.8-flash",
+        model="gemini-3.5-flash-lite",
         google_api_key=settings.gemini_api_key,
         temperature=0,
     )

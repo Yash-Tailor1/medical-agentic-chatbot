@@ -17,6 +17,8 @@ from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from openai import OpenAI
+from google import genai
+from google.genai import types
 
 from app.config import settings
 from app.agent import graph
@@ -302,13 +304,16 @@ def chat(
 # POST /api/transcribe
 # --------------------------------------------------
 
+
+# Speech-to-text using Gemini
+# POST /api/transcribe
+
 @app.post("/api/transcribe")
 async def transcribe(
     file: UploadFile = File(...),
     authorization: str | None = Header(default=None),
 ):
     check_auth(authorization)
-    openai_client = require_openai()
 
     allowed_types = {
         "audio/webm",
@@ -322,45 +327,77 @@ async def transcribe(
         "video/webm",
     }
 
-    if file.content_type not in allowed_types:
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+
+    if content_type not in allowed_types:
         raise HTTPException(
             status_code=415,
-            detail=f"Unsupported audio type: {file.content_type}",
+            detail=f"Unsupported audio type: {content_type}",
         )
 
     audio_bytes = await file.read()
 
-    if not audio_bytes:
-        raise HTTPException(status_code=400, detail="Audio file is empty.")
-
-    if len(audio_bytes) > 20_000_000:
-        raise HTTPException(
-            status_code=413,
-            detail="Audio file must be under 20 MB.",
-        )
-
-    filename = Path(file.filename or "recording.webm").name
-
     try:
-        result = openai_client.audio.transcriptions.create(
-            model=TRANSCRIPTION_MODEL,
-            file=(
-                filename,
-                io.BytesIO(audio_bytes),
-                file.content_type,
-            ),
+        if not audio_bytes:
+            raise HTTPException(
+                status_code=400,
+                detail="Audio file is empty.",
+            )
+
+        if len(audio_bytes) > 20_000_000:
+            raise HTTPException(
+                status_code=413,
+                detail="Audio file must be under 20 MB.",
+            )
+
+        if not settings.gemini_api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="Gemini API key is not configured.",
+            )
+
+        gemini_client = genai.Client(
+            api_key=settings.gemini_api_key
         )
 
-        return {"text": result.text}
+        audio_part = types.Part.from_bytes(
+            data=audio_bytes,
+            mime_type=content_type,
+        )
+
+        response = gemini_client.models.generate_content(
+            model="gemini-3.5-flash-lite",
+            contents=[
+                "Transcribe the spoken words in this audio accurately. "
+                "Return only the transcript, without explanations. "
+                "If no intelligible speech is present, return an empty response.",
+                audio_part,
+            ],
+        )
+
+        transcript = (response.text or "").strip()
+
+        if not transcript:
+            raise HTTPException(
+                status_code=422,
+                detail="No intelligible speech was detected.",
+            )
+
+        return {"text": transcript}
+
+    except HTTPException:
+        raise
 
     except Exception as exc:
+        print(f"Gemini transcription failed: {exc}", flush=True)
         raise HTTPException(
             status_code=502,
-            detail=f"Transcription failed: {str(exc)}",
+            detail="Gemini transcription failed. Check the server logs.",
         ) from exc
 
     finally:
         await file.close()
+
 
 
 # --------------------------------------------------

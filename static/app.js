@@ -1,398 +1,339 @@
-const API_BASE = "http://127.0.0.1:8000";
-const API_URL = `${API_BASE}/api/chat`;
 
-// Leave empty if your backend API_TOKEN is not configured.
-// For local development only, enter a matching token if required.
-const API_TOKEN = "";
+const $ = id => document.getElementById(id);
 
-function apiHeaders(json = false) {
-    const headers = {};
-
-    if (json) {
-        headers["Content-Type"] = "application/json";
-    }
-
-    if (API_TOKEN) {
-        headers["Authorization"] = `Bearer ${API_TOKEN}`;
-    }
-
-    return headers;
-}
-
-const messagesElement = document.getElementById("messages");
-const welcomeElement = document.getElementById("welcome");
-const form = document.getElementById("chat-form");
-const input = document.getElementById("user-input");
-const sendButton = document.getElementById("send-button");
-const historyElement = document.getElementById("chat-history");
-
-let conversation = [];
-let chatHistory = [];
-let isLoading = false;
-
-
-let selectedImageFile = null;
-let mediaRecorder = null;
+let history = [];
+let imageData = null;
+let recorder = null;
 let audioChunks = [];
+let cameraStream = null;
+let lastAnswer = '';
 
-function setMediaStatus(message) {
-    document.getElementById("media-status").textContent = message;
+const headers = () => {
+    const h = {};
+    const token = $('token').value.trim();
+
+    if (token) {
+        h.Authorization = `Bearer ${token}`;
+    }
+
+    return h;
+};
+
+function bubble(text, kind = 'bot', sources = []) {
+    const el = document.createElement('article');
+    el.className = kind;
+    el.textContent = text;
+
+    if (sources.length) {
+        const s = document.createElement('div');
+        s.className = 'sources';
+        s.textContent =
+            'Sources: ' +
+            sources.slice(0, 8)
+                .map(x => x.type === 'pdf'
+                    ? `PDF page ${x.page}`
+                    : x.url)
+                .join(' | ');
+
+        el.appendChild(s);
+    }
+
+    $('messages').appendChild(el);
+    $('messages').scrollTop = $('messages').scrollHeight;
+
+    return el;
 }
 
-function fileToDataURL(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
+// Check backend status
+async function check() {
+    try {
+        const r = await fetch('/api/health');
+        const d = await r.json();
 
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error("Could not read the image."));
-
-        reader.readAsDataURL(file);
-    });
+        $('status').textContent = d.configured
+            ? '● Connected'
+            : '⚠ Configure API keys';
+    } catch {
+        $('status').textContent = '● Server offline';
+    }
 }
 
-// IMAGE UPLOAD AND PREVIEW
-document.getElementById("image-upload").addEventListener("change", event => {
-    const file = event.target.files[0];
+check();
+
+// Image upload
+function setImage(file) {
     if (!file) return;
 
-    const allowedTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/webp",
-        "image/gif"
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-        setMediaStatus("Choose a JPEG, PNG, WebP, or GIF image.");
-        event.target.value = "";
+    if (
+        !['image/png', 'image/jpeg', 'image/webp'].includes(file.type) ||
+        file.size > 5e6
+    ) {
+        alert('Use PNG/JPEG/WebP under 5MB');
         return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-        setMediaStatus("Please choose an image smaller than 10 MB.");
-        event.target.value = "";
-        return;
-    }
+    const reader = new FileReader();
 
-    selectedImageFile = file;
+    reader.onload = () => {
+        imageData = reader.result;
+        $('thumbnail').src = imageData;
+        $('preview').hidden = false;
+    };
 
-    const preview = document.getElementById("image-preview");
-    preview.replaceChildren();
+    reader.readAsDataURL(file);
+}
 
-    const image = document.createElement("img");
-    image.alt = "Selected image preview";
-    image.src = URL.createObjectURL(file);
-
-    const name = document.createElement("span");
-    name.textContent = ` ${file.name} `;
-
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.textContent = "Remove image";
-    remove.addEventListener("click", clearSelectedImage);
-
-    preview.append(image, name, remove);
-    setMediaStatus("Image attached. Ask a question and send it.");
+$('image').addEventListener('change', e => {
+    setImage(e.target.files[0]);
 });
 
-function clearSelectedImage() {
-    selectedImageFile = null;
-    document.getElementById("image-upload").value = "";
-    document.getElementById("image-preview").replaceChildren();
-}
+$('remove').onclick = () => {
+    imageData = null;
+    $('preview').hidden = true;
+    $('image').value = '';
+};
 
-// VOICE RECORDING AND TRANSCRIPTION
-document.getElementById("record-button").addEventListener("click", async () => {
-    const button = document.getElementById("record-button");
+// Chat submission
+$('chatForm').addEventListener('submit', async e => {
+    e.preventDefault();
 
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-        mediaRecorder.stop();
-        button.textContent = "🎙️ Record voice";
-        setMediaStatus("Processing recording...");
-        return;
-    }
+    const message = $('message').value.trim();
 
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-        setMediaStatus("Voice recording is not supported by this browser.");
-        return;
-    }
+    if (!message) return;
 
-    let stream;
+    const prior = history.slice(-8);
 
-    try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    bubble(message, 'user');
 
-        const options = MediaRecorder.isTypeSupported("audio/webm")
-            ? { mimeType: "audio/webm" }
-            : {};
+    $('message').value = '';
+    $('send').disabled = true;
 
-        mediaRecorder = new MediaRecorder(stream, options);
-        audioChunks = [];
-
-        mediaRecorder.ondataavailable = event => {
-            if (event.data.size > 0) {
-                audioChunks.push(event.data);
-            }
-        };
-
-        mediaRecorder.onerror = () => {
-            setMediaStatus("Recording failed. Please try again.");
-        };
-
-        mediaRecorder.onstop = async () => {
-            stream.getTracks().forEach(track => track.stop());
-
-            try {
-                const mimeType = mediaRecorder.mimeType || "audio/webm";
-                const extension = mimeType.includes("mp4") ? "m4a" : "webm";
-                const audioBlob = new Blob(audioChunks, { type: mimeType });
-
-                if (!audioBlob.size) {
-                    throw new Error("The recording was empty.");
-                }
-
-                const formData = new FormData();
-                formData.append("file", audioBlob, `recording.${extension}`);
-
-                const response = await fetch(`${API_BASE}/api/transcribe`, {
-                    method: "POST",
-                    headers: apiHeaders(),
-                    body: formData
-                });
-
-                if (!response.ok) {
-                    throw new Error(
-                        `Transcription failed (${response.status}): ` +
-                        (await response.text()).slice(0, 250)
-                    );
-                }
-
-                const data = await response.json();
-
-                if (!data.text) {
-                    throw new Error("The API returned no transcription text.");
-                }
-
-                input.value = data.text;
-                input.dispatchEvent(new Event("input"));
-                input.focus();
-
-                setMediaStatus("Transcription ready. Review it and press Send.");
-            } catch (error) {
-                console.error("Transcription error:", error);
-                setMediaStatus(error.message);
-            }
-        };
-
-        mediaRecorder.start();
-        button.textContent = "⏹ Stop recording";
-        setMediaStatus("Recording... click Stop recording when finished.");
-    } catch (error) {
-        if (stream) stream.getTracks().forEach(track => track.stop());
-        console.error("Microphone error:", error);
-        setMediaStatus("Microphone access failed. Check browser permissions.");
-    }
-});
-
-
-function scrollToBottom() {
-    messagesElement.scrollTop = messagesElement.scrollHeight;
-}
-
-function hideWelcome() {
-    if (welcomeElement) {
-        welcomeElement.remove();
-    }
-}
-
-function addMessage(role, text, options = {}) {
-    hideWelcome();
-
-    const message = document.createElement("div");
-    message.className = `message ${role === "user" ? "user" : "assistant"}`;
-
-    const avatar = document.createElement("div");
-    avatar.className = "avatar";
-    avatar.textContent = role === "user" ? "Y" : "✚";
-
-    const content = document.createElement("div");
-    content.className = "message-content";
-
-    const name = document.createElement("div");
-    name.className = "message-name";
-    name.textContent = role === "user" ? "You" : "MediAI";
-
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.textContent = text;
-
-    content.append(name, bubble);
-    message.append(avatar, content);
-    messagesElement.appendChild(message);
-
-    if (options.typing) {
-        bubble.textContent = "";
-
-        const typing = document.createElement("div");
-        typing.className = "typing";
-
-        for (let i = 0; i < 3; i++) {
-            typing.appendChild(document.createElement("span"));
-        }
-
-        bubble.appendChild(typing);
-        message.id = "typing-indicator";
-    }
-
-    scrollToBottom();
-    return message;
-}
-
-function addHistory(title) {
-    const item = document.createElement("button");
-    item.className = "history-item";
-    item.textContent = title;
-    item.title = title;
-    item.addEventListener("click", () => {
-        alert("Persistent chat history is not configured yet.");
-    });
-
-    historyElement.prepend(item);
-}
-
-async function sendMessage(text) {
-    text = text.trim();
-
-if ((!text && !selectedImageFile) || isLoading) return;
-
-if (!text && selectedImageFile) {
-    text = "Describe this image and identify any visible medical information.";
-}
-
-    isLoading = true;
-    sendButton.disabled = true;
-
-    addMessage("user", text);
-    conversation.push({ role: "user", content: text });
-
-    if (chatHistory.length === 0) {
-        chatHistory.push(text);
-        addHistory(text);
-    }
-
-    input.value = "";
-    input.style.height = "auto";
-
-    const typingMessage = addMessage("assistant", "", { typing: true });
+    const pending = bubble('Thinking…');
 
     try {
-        const response = await fetch(API_URL, {
-            method: "POST",
+        const r = await fetch('/api/chat', {
+            method: 'POST',
             headers: {
-                "Content-Type": "application/json"
+                ...headers(),
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                message: text,
-                question: text,
-                history: conversation
+                message,
+                history: prior,
+                image_data: imageData
             })
         });
 
-        if (!response.ok) {
-            const details = await response.text();
-            throw new Error(
-                `Backend returned ${response.status}: ${details.slice(0, 200)}`
-            );
+        const d = await r.json();
+
+        if (!r.ok) {
+            throw new Error(d.detail || 'Request failed');
         }
 
-        const data = await response.json();
+        pending.textContent = d.answer;
+        lastAnswer = d.answer;
 
-        // Adapt these keys to match your FastAPI response schema.
-        const answer =
-            data.answer ??
-            data.response ??
-            data.message ??
-            data.result;
+        if (d.sources?.length) {
+            const src = document.createElement('div');
+            src.className = 'sources';
 
-        if (typeof answer !== "string") {
-            throw new Error(
-                "The API responded, but no text answer was found. " +
-                "Check the response JSON in your backend."
-            );
+            src.textContent =
+                'Sources: ' +
+                d.sources.slice(0, 8)
+                    .map(x => x.type === 'pdf'
+                        ? `PDF page ${x.page}`
+                        : x.url)
+                    .join(' | ');
+
+            pending.appendChild(src);
         }
 
-        typingMessage.remove();
-        addMessage("assistant", answer);
+        history.push(
+            { role: 'user', content: message },
+            { role: 'assistant', content: d.answer }
+        );
 
-        conversation.push({
-            role: "assistant",
-            content: answer
+        $('remove').click();
+
+    } catch (err) {
+        pending.textContent = 'Error: ' + err.message;
+    } finally {
+        $('send').disabled = false;
+        $('messages').scrollTop = $('messages').scrollHeight;
+    }
+});
+
+// Microphone recording and transcription
+$('mic').onclick = async () => {
+    if (recorder && recorder.state === 'recording') {
+        recorder.stop();
+        $('mic').textContent = '🎤 Voice';
+        return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia ||
+        typeof MediaRecorder === 'undefined') {
+        alert('Microphone recording is not supported in this browser.');
+        return;
+    }
+
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            audio: true
         });
 
-    } catch (error) {
-        typingMessage.remove();
+        audioChunks = [];
+        recorder = new MediaRecorder(stream);
 
-        console.error("Chat request failed:", error);
+        recorder.ondataavailable = e => {
+            if (e.data.size > 0) {
+                audioChunks.push(e.data);
+            }
+        };
 
-        addMessage(
-            "assistant",
-            "I couldn't connect to the medical assistant. " +
-            "Please check that your Python backend is running and " +
-            "that API_URL in script.js matches its endpoint.\n\n" +
-            `Details: ${error.message}`
-        );
-    } finally {
-        isLoading = false;
-        sendButton.disabled = false;
-        input.focus();
+        recorder.onstop = async () => {
+            stream.getTracks().forEach(t => t.stop());
+
+            const blob = new Blob(audioChunks, {
+                type: recorder.mimeType
+            });
+
+            const data = new FormData();
+            data.append('file', blob, 'voice.webm');
+
+            $('mic').disabled = true;
+            $('mic').textContent = 'Processing…';
+
+            try {
+                const r = await fetch('/api/transcribe', {
+                    method: 'POST',
+                    headers: headers(),
+                    body: data
+                });
+
+                const out = await r.json();
+
+                if (!r.ok) {
+                    throw new Error(
+                        out.detail || 'Transcription failed'
+                    );
+                }
+
+                $('message').value = out.text;
+
+            } catch (e) {
+                alert(e.message);
+            } finally {
+                $('mic').disabled = false;
+                $('mic').textContent = '🎤 Voice';
+            }
+        };
+
+        recorder.start();
+        $('mic').textContent = '⏹ Stop recording';
+
+    } catch (e) {
+        alert('Microphone unavailable: ' + e.message);
     }
-}
+};
 
-form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    sendMessage(input.value);
-});
-
-input.addEventListener("input", () => {
-    input.style.height = "auto";
-    input.style.height = `${Math.min(input.scrollHeight, 150)}px`;
-});
-
-input.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        form.requestSubmit();
+// Listen to the latest answer using browser speech synthesis
+$('listen').onclick = () => {
+    if (!lastAnswer) {
+        alert('Ask a question first');
+        return;
     }
-});
 
-document.querySelectorAll(".suggestion").forEach((button) => {
-    button.addEventListener("click", () => {
-        sendMessage(button.dataset.prompt);
-    });
-});
+    if (!('speechSynthesis' in window)) {
+        alert('Speech synthesis is not supported by this browser.');
+        return;
+    }
 
-document.getElementById("new-chat").addEventListener("click", () => {
-    conversation = [];
-    chatHistory = [];
-    messagesElement.replaceChildren();
-    historyElement.replaceChildren();
+    window.speechSynthesis.cancel();
 
-    const welcome = document.createElement("div");
-    welcome.id = "welcome";
-    welcome.className = "welcome";
-    welcome.innerHTML = `
-        <div class="welcome-icon">✚</div>
-        <p class="eyebrow">YOUR PERSONAL AI ASSISTANT</p>
-        <h1>How can I help<br>you today?</h1>
-        <p class="welcome-text">
-            Ask medical questions and explore health information
-            with your AI assistant.
-        </p>
-    `;
+    const utterance = new SpeechSynthesisUtterance(lastAnswer);
 
-    messagesElement.appendChild(welcome);
-});
+    utterance.lang = 'en-IN';
+    utterance.rate = 1;
+    utterance.pitch = 1;
 
-document.getElementById("clear-chat").addEventListener("click", () => {
-    document.getElementById("new-chat").click();
-});
+    $('listen').disabled = true;
+
+    utterance.onend = () => {
+        $('listen').disabled = false;
+    };
+
+    utterance.onerror = () => {
+        $('listen').disabled = false;
+        alert('Unable to play speech.');
+    };
+
+    window.speechSynthesis.speak(utterance);
+};
+
+// Open camera
+$('camera').onclick = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+        alert('Camera access is not supported in this browser.');
+        return;
+    }
+
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'environment' }
+        });
+
+        $('video').srcObject = cameraStream;
+        $('video').hidden = false;
+        $('cameraActions').hidden = false;
+
+    } catch (e) {
+        alert('Camera unavailable: ' + e.message);
+    }
+};
+
+// Close camera and release resources
+$('closeCamera').onclick = () => {
+    cameraStream?.getTracks().forEach(t => t.stop());
+
+    cameraStream = null;
+    $('video').srcObject = null;
+    $('video').hidden = true;
+    $('cameraActions').hidden = true;
+};
+
+// Capture camera image
+$('snap').onclick = () => {
+    const v = $('video');
+    const c = $('canvas');
+
+    if (!v.videoWidth || !v.videoHeight) {
+        alert('Camera is not ready yet. Please try again.');
+        return;
+    }
+
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
+
+    c.getContext('2d').drawImage(
+        v,
+        0,
+        0,
+        c.width,
+        c.height
+    );
+
+    c.toBlob(blob => {
+        if (blob) {
+            setImage(
+                new File(
+                    [blob],
+                    'camera.jpg',
+                    { type: 'image/jpeg' }
+                )
+            );
+        }
+    }, 'image/jpeg', 0.85);
+
+    $('closeCamera').click();
+};

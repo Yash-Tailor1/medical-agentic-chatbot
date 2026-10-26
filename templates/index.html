@@ -1,69 +1,208 @@
-<!doctype html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f9fc">
-  <title>MediAI — Medical Assistant</title>
-  <link rel="stylesheet" href="static/style.css">
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <meta
+        name="description"
+        content="MedGuide AI is a medical education assistant with knowledge-base retrieval, source citations, image upload, and voice support."
+    >
+    <meta name="theme-color" content="#f5f8fc">
+
+    <title>MedGuide AI | Medical Education Assistant</title>
+
+    <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
-  <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand">
-        <div class="brand-mark">✚</div>
-        <div><div class="brand-name">MediAI</div><div class="brand-caption">MEDICAL ASSISTANT</div></div>
-      </div>
-      <button id="new-chat-button" class="new-chat"><span>＋</span> New conversation</button>
-      <div class="side-label">RECENT CONVERSATIONS</div>
-      <div id="history-list" class="history-list">
-        <div class="empty-history">Your conversations will appear here.</div>
-      </div>
-      <div class="sidebar-bottom">
-        <div class="privacy-icon">♧</div>
-        <div><strong>Your health, handled carefully</strong><p>Educational information, not a diagnosis.</p></div>
-      </div>
-    </aside>
+    <main class="app">
+        <!-- Application header -->
+        <header>
+            <div>
+                <h1>✚ MedGuide AI</h1>
+                <p>
+                    Medical education · Knowledge base · Web research
+                </p>
+            </div>
 
-    <main class="main-panel">
-      <header class="topbar">
-        <button id="mobile-menu" class="icon-button mobile-menu" aria-label="Toggle sidebar">☰</button>
-        <div class="topbar-title"><span class="status-dot"></span> Medical Assistant <span class="online-label">AI-powered education</span></div>
-        <div class="topbar-actions"><span class="secure-label">⌑ Secure session</span></div>
-      </header>
+            <span
+                id="status"
+                role="status"
+                aria-live="polite"
+            >
+                Checking connection…
+            </span>
+        </header>
 
-      <section id="chat-scroll" class="chat-scroll">
-        <div id="welcome" class="welcome">
-          <div class="welcome-symbol">✚</div>
-          <div class="eyebrow">YOUR PERSONAL HEALTH COMPANION</div>
-          <h1>How can I help you<br><span>understand your health?</span></h1>
-          <p class="welcome-description">Ask a medical question, share an image for general observations, or use your voice to get started.</p>
-          <div class="suggestion-grid">
-            <button class="suggestion" data-prompt="What are common symptoms of anemia?"><span class="suggestion-icon lavender">♡</span><span><strong>Understand symptoms</strong><small>Learn about common symptoms</small></span><span class="suggestion-arrow">↗</span></button>
-            <button class="suggestion" data-prompt="What can cause a sore throat, and when should I seek medical care?"><span class="suggestion-icon mint">✳</span><span><strong>Explore a health concern</strong><small>Causes and warning signs</small></span><span class="suggestion-arrow">↗</span></button>
-            <button class="suggestion" data-prompt="Explain how to read a typical blood test report."><span class="suggestion-icon blue">▤</span><span><strong>Understand a test</strong><small>Learn about medical reports</small></span><span class="suggestion-arrow">↗</span></button>
-            <button class="suggestion" data-prompt="What are some evidence-based habits for better sleep?"><span class="suggestion-icon peach">☼</span><span><strong>Everyday wellness</strong><small>Build healthier routines</small></span><span class="suggestion-arrow">↗</span></button>
-          </div>
+        <!-- Medical safety notice -->
+        <div class="notice" role="note">
+            <strong>Important:</strong>
+            Educational guidance only. This assistant cannot diagnose
+            medical conditions or replace a qualified healthcare
+            professional. For severe or life-threatening symptoms,
+            seek emergency medical care.
         </div>
-        <div id="messages" class="messages" aria-live="polite"></div>
-      </section>
 
-      <footer class="composer-area">
-        <div id="attachment-preview" class="attachment-preview" hidden></div>
-        <form id="chat-form" class="composer">
-          <input id="image-upload" type="file" accept="image/jpeg,image/png,image/webp" hidden>
-          <button id="attach-button" class="composer-tool" type="button" title="Attach an image" aria-label="Attach an image">＋</button>
-          <textarea id="user-input" rows="1" maxlength="4000" placeholder="Ask a medical question..." aria-label="Message"></textarea>
-          <button id="record-button" class="composer-tool" type="button" title="Record voice" aria-label="Record voice">♩</button>
-          <button id="send-button" class="send-button" type="submit" aria-label="Send message">↑</button>
+        <!-- Conversation -->
+        <section
+            id="messages"
+            aria-label="Chat conversation"
+            aria-live="polite"
+            aria-relevant="additions"
+        >
+            <article class="bot">
+                Hello! I'm MedGuide AI.
+
+                Ask a medical question, upload an image, or use the
+                microphone to describe your symptoms.
+
+                I'll provide educational information, explain
+                uncertainty, and show available source citations.
+            </article>
+        </section>
+
+        <!-- Image preview -->
+        <section
+            id="preview"
+            aria-label="Selected image preview"
+            hidden
+        >
+            <img
+                id="thumbnail"
+                alt="Preview of the selected medical image"
+            >
+
+            <button
+                class="action"
+                id="remove"
+                type="button"
+            >
+                Remove image ×
+            </button>
+        </section>
+
+        <!-- Chat input -->
+        <form id="chatForm">
+            <label for="message" class="sr-only">
+                Medical question or symptoms
+            </label>
+
+            <textarea
+                id="message"
+                name="message"
+                placeholder="Describe your symptoms or ask a medical question…"
+                rows="3"
+                required
+                maxlength="4000"
+                aria-describedby="inputHelp"
+            ></textarea>
+
+            <p id="inputHelp" class="input-help">
+                Avoid including personal identifying information.
+            </p>
+
+            <!-- Chat actions -->
+            <div class="toolbar">
+                <label class="action" for="image">
+                    📎 Image
+                </label>
+
+                <input
+                    id="image"
+                    name="image"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    hidden
+                >
+
+                <button
+                    class="action"
+                    id="camera"
+                    type="button"
+                >
+                    📷 Camera
+                </button>
+
+                <button
+                    class="action"
+                    id="mic"
+                    type="button"
+                    aria-label="Record a voice question"
+                >
+                    🎤 Voice
+                </button>
+
+                <button
+                    class="action"
+                    id="listen"
+                    type="button"
+                >
+                    🔊 Read answer
+                </button>
+
+                <button id="send" type="submit">
+                    Send ➜
+                </button>
+            </div>
         </form>
-        <div class="composer-meta"><span id="media-status" role="status">Enter to send · Shift + Enter for a new line</span><span>For educational use only</span></div>
-        <div class="disclaimer"><strong>Important:</strong> MediAI provides general educational information and is not a substitute for professional medical advice, diagnosis, or treatment. If you may be experiencing an emergency, contact local emergency services.</div>
-      </footer>
+
+        <!-- Optional API authentication -->
+        <details>
+            <summary>API access (optional)</summary>
+
+            <label for="token">
+                API token
+            </label>
+
+            <input
+                id="token"
+                name="token"
+                type="password"
+                placeholder="API_TOKEN from .env"
+                autocomplete="off"
+                spellcheck="false"
+            >
+
+            <p class="input-help">
+                Leave blank if your backend does not require an API token.
+                Never enter your Gemini or other provider API key here.
+            </p>
+        </details>
+
+        <!-- Camera preview -->
+        <section aria-label="Camera" id="cameraSection">
+            <video
+                id="video"
+                autoplay
+                playsinline
+                muted
+                aria-label="Live camera preview"
+                hidden
+            ></video>
+
+            <div id="cameraActions" hidden>
+                <button id="snap" type="button">
+                    Capture image
+                </button>
+
+                <button id="closeCamera" type="button">
+                    Close camera
+                </button>
+            </div>
+
+            <canvas id="canvas" hidden></canvas>
+        </section>
+
+        <footer>
+            <p>
+                MedGuide AI provides educational information, not
+                professional medical advice.
+            </p>
+        </footer>
     </main>
-  </div>
-  <script src="static/app.js"></script>
+
+    <script src="/static/app.js" defer></script>
 </body>
 </html>
